@@ -1,65 +1,112 @@
-# Assistente de voz "Claude" (local)
+# JARVIS-IV
 
-Script Python que fica ouvindo o microfone e, quando você diz **"Claude"**,
-envia o restante do que você falou para a API da Anthropic e fala a
-resposta em voz alta.
+Versão que roda **sem internet e sem créditos de API**. O reconhecimento de
+voz é feito localmente no seu PC usando o [Vosk](https://alphacephei.com/vosk/),
+e a síntese de voz usa o motor do próprio Windows (SAPI5).
 
 ## 1. Instalar o Python
 
-Baixe em https://www.python.org/downloads/ (marque "Add Python to PATH"
-durante a instalação). Versão recomendada: 3.10 ou superior.
+Baixe em https://python.org (marque "Add Python to PATH" na instalação).
 
 ## 2. Instalar as dependências
 
-Abra o terminal (PowerShell ou CMD) na pasta do projeto e rode:
-
-```bash
-pip install -r requirements.txt
-```
-
-**No Windows, o PyAudio pode falhar ao instalar direto pelo pip.**
-Se der erro, instale com:
-
-```bash
-pip install pipwin
-pipwin install pyaudio
-```
-
-## 3. Configurar sua chave de API
-
-1. Copie o arquivo `.env.example` e renomeie a cópia para `.env`.
-2. Abra `.env` e cole sua chave da Anthropic (gerada em
-   https://console.anthropic.com/ → API Keys → Create Key).
+Abra o cmd na pasta dos arquivos e rode:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-sua-chave-aqui
+pip install vosk sounddevice pyttsx3 pycaw comtypes keyboard
 ```
+
+Nenhuma dessas precisa de compilação complicada — diferente da versão antiga,
+você **não precisa mais do pyaudio nem do pipwin**.
+
+## 3. Baixar o modelo de voz em português (uma vez só, precisa de internet)
+
+1. Acesse: https://alphacephei.com/vosk/models
+2. Baixe um modelo em português. Recomendo:
+   - **`vosk-model-small-pt-0.3`** (~40 MB) — leve e rápido, ótimo para comandos curtos.
+   - **`vosk-model-pt-fb-v0.1.1-20220516_2113`** (~1.5 GB) — mais preciso, mas usa mais memória.
+   - Para começar, use o modelo pequeno.
+3. Extraia o `.zip` baixado.
+4. Renomeie a pasta extraída para **`modelo_vosk`** e coloque dentro da mesma
+   pasta do `chat.py`.
+
+Estrutura final esperada:
+```
+assistente_voz/
+├── chat.py
+├── comandos.json
+├── README.md
+└── modelo_vosk/
+    ├── am/
+    ├── conf/
+    ├── graph/
+    └── ...
+```
+
+Depois disso, **nunca mais precisa de internet** para o reconhecimento de voz
+funcionar — o modelo já está no seu disco.
 
 ## 4. Rodar o assistente
 
-```bash
-python assistant.py
+Comandos de mídia/volume podem pedir execução como Administrador. Clique
+direito no cmd/PowerShell → "Executar como administrador", navegue até a
+pasta e rode:
+
+```
+python chat.py
 ```
 
-O terminal vai mostrar "Pronto." — a partir daí, fale algo como:
+Você vai ouvir "Assistente de voz offline ativado" — a partir daí, fale.
 
-> "Claude, me fale sobre o clima."
+## 5. Comandos disponíveis
 
-O script transcreve, detecta a palavra "Claude", envia o resto da frase
-para a API e fala a resposta em voz alta.
+- "abrir bloco de notas", "abrir calculadora", "abrir navegador", "abrir paint"
+- "youtube", "google", "gmail" → abre o site (precisa de internet só para a página carregar)
+- "pesquisar por [algo]" → pesquisa no Google
+- "tocar" / "pausar" → play/pause da mídia
+- "próxima música" / "música anterior"
+- "aumentar volume" / "diminuir volume" / "mudo" / "desmutar"
+- "abrir downloads" → exemplo de comando personalizado
+- "sair" → encerra o assistente
 
-Para encerrar, pressione `Ctrl+C` no terminal.
+## 6. Adicionar seus próprios comandos
+
+Edite o **comandos.json** (não precisa mexer no código):
+
+```json
+{
+  "programas": {
+    "nome que você vai falar": "caminho\\do\\programa.exe"
+  },
+  "sites": {
+    "nome que você vai falar": "https://site.com"
+  },
+  "personalizados": {
+    "nome que você vai falar": "comando de terminal ou caminho para executar"
+  }
+}
+```
+
+## Diferenças em relação à versão com Google (antiga)
+
+| | Versão Google | Versão Vosk (offline) |
+|---|---|---|
+| Precisa de internet para ouvir comandos | Sim | **Não** |
+| Precisa de API/créditos | Não (grátis, mas limitado) | **Não** |
+| Precisão do reconhecimento | Mais alta | Boa, um pouco menor (principalmente no modelo pequeno) |
+| Primeira configuração | Mais simples | Precisa baixar o modelo (~40 MB a 1.5 GB) uma vez |
+| Privacidade | Áudio vai para servidores do Google | **Áudio nunca sai do seu PC** |
+
+Se a precisão do modelo pequeno não for suficiente para o que você precisa,
+troque para o modelo maior (`vosk-model-pt-fb-v0.1.1...`) — o código não
+muda, só a pasta `modelo_vosk`.
 
 ## Observações
 
-- O reconhecimento de voz usado (`speech_recognition` com o serviço do
-  Google) precisa de **internet** para funcionar.
-- A qualidade da detecção da palavra "Claude" depende do microfone e do
-  ruído do ambiente — em local silencioso funciona melhor.
-- Cada pergunta que você faz gera uma chamada à API da Anthropic, que é
-  paga conforme o uso da sua conta (veja preços em
-  https://www.anthropic.com/pricing).
-- Se quiser trocar a palavra de ativação, edite `WAKE_WORD` no `.env`
-  (ex: `WAKE_WORD=assistente`).
-- O histórico de conversa é mantido apenas durante a execução do script
-  (é apagado quando você fecha o terminal).
+- Por segurança, o script **não inclui** comando para desligar/reiniciar o PC
+  por padrão. Se quiser adicionar, use em "personalizados":
+  `"desligar computador": "shutdown /s /t 5"` — mas tome cuidado, pois qualquer
+  ruído parecido pode acionar sem querer.
+- Sem "wake word" (palavra de ativação): o assistente sempre tenta interpretar
+  o que capta no microfone. Se isso gerar ativações indesejadas em ambiente
+  barulhento, me avise que dá pra adicionar uma palavra de ativação.
