@@ -1,0 +1,17 @@
+{
+  "programas": {
+    "bloco de notas": "notepad.exe",
+    "calculadora": "calc.exe",
+    "navegador": "chrome.exe",
+    "explorador de arquivos": "explorer.exe",
+    "paint": "mspaint.exe"
+  },
+  "sites": {
+    "youtube": "https://youtube.com",
+    "google": "https://google.com",
+    "gmail": "https://mail.google.com"
+  },
+  "personalizados": {
+    "abrir downloads": "explorer.exe %USERPROFILE%\\Downloads"
+  }
+}
