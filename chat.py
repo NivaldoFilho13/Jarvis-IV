@@ -1,3 +1,4 @@
+import difflib
 import json
 import os
 import queue
@@ -71,10 +72,40 @@ def ajustar_volume(delta):
     novo = min(1.0, max(0.0, atual + delta))
     vol.SetMasterVolumeLevelScalar(novo, None)
 
-
 def mudo(ativar=True):
     vol = _volume_interface()
     vol.SetMute(1 if ativar else 0, None)
+
+FRASES_FIXAS = [
+    "sair", "parar assistente", "encerrar assistente",
+    "tocar", "pausar",
+    "próxima música", "próxima faixa",
+    "música anterior", "faixa anterior",
+    "aumentar volume", "aumenta o volume",
+    "diminuir volume", "diminui o volume",
+    "mudo", "silenciar", "desmutar", "tirar o mudo",
+]
+
+
+def construir_lista_frases(config):
+
+    dinamicas = (
+        list(config.get("sites", {}).keys())
+        + list(config.get("programas", {}).keys())
+        + list(config.get("personalizados", {}).keys())
+    )
+    return FRASES_FIXAS + dinamicas
+
+def construir_gramatica(config):
+
+    frases = construir_lista_frases(config)
+    return frases + ["pesquisar por", "pesquisa por", "[unk]"]
+
+def corrigir_com_fuzzy(texto, config):
+
+    frases = construir_lista_frases(config)
+    mais_proxima = difflib.get_close_matches(texto, frases, n=1, cutoff=0.6)
+    return mais_proxima[0] if mais_proxima else texto
 
 def abrir_programa(caminho):
     try:
@@ -84,7 +115,6 @@ def abrir_programa(caminho):
         print(f"Erro ao abrir programa: {e}")
         return False
 
-
 def executar_comando_personalizado(comando_shell):
     try:
         subprocess.Popen(comando_shell, shell=True)
@@ -93,11 +123,16 @@ def executar_comando_personalizado(comando_shell):
         print(f"Erro ao executar comando: {e}")
         return False
 
-
 def processar_comando(texto, config):
     texto = texto.lower().strip()
     if not texto:
         return True
+
+    if not texto.startswith("pesquisar por") and not texto.startswith("pesquisa por"):
+        corrigido = corrigir_com_fuzzy(texto, config)
+        if corrigido != texto:
+            print(f"(entendi como: {corrigido})")
+            texto = corrigido
 
     if any(p in texto for p in ["sair", "parar assistente", "encerrar assistente"]):
         falar("Encerrando assistente. Até logo!")
@@ -166,12 +201,10 @@ def processar_comando(texto, config):
 
 fila_audio = queue.Queue()
 
-
 def callback_audio(indata, frames, time_info, status):
     if status:
         print(status)
     fila_audio.put(bytes(indata))
-
 
 def verificar_modelo():
     if not os.path.isdir(MODELO_PATH) or not os.listdir(MODELO_PATH):
@@ -188,7 +221,8 @@ def main():
 
     print("Carregando modelo de reconhecimento de voz (pode levar alguns segundos)...")
     modelo = Model(MODELO_PATH)
-    reconhecedor = KaldiRecognizer(modelo, TAXA_AMOSTRAGEM)
+    gramatica = construir_gramatica(config)
+    reconhecedor = KaldiRecognizer(modelo, TAXA_AMOSTRAGEM, json.dumps(gramatica, ensure_ascii=False))
 
     falar("Assistente de voz offline ativado. Pode falar seus comandos.")
 
