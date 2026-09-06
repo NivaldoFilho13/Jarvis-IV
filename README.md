@@ -1,8 +1,12 @@
-# JARVIS-IV
+# Assistente de Voz OFFLINE (Windows)
 
 Versão que roda **sem internet e sem créditos de API**. O reconhecimento de
 voz é feito localmente no seu PC usando o [Vosk](https://alphacephei.com/vosk/),
 e a síntese de voz usa o motor do próprio Windows (SAPI5).
+
+> A única exceção é o comando "pesquisar por..." e abrir sites, que abrem o
+> navegador — isso naturalmente precisa de internet para carregar a página,
+> mas o assistente em si (ouvir e entender seus comandos) funciona 100% offline.
 
 ## 1. Instalar o Python
 
@@ -28,12 +32,12 @@ você **não precisa mais do pyaudio nem do pipwin**.
    - Para começar, use o modelo pequeno.
 3. Extraia o `.zip` baixado.
 4. Renomeie a pasta extraída para **`modelo_vosk`** e coloque dentro da mesma
-   pasta do `chat.py`.
+   pasta do `assistente_voz_offline.py`.
 
 Estrutura final esperada:
 ```
 assistente_voz/
-├── chat.py
+├── assistente_voz_offline.py
 ├── comandos.json
 ├── README.md
 └── modelo_vosk/
@@ -53,7 +57,7 @@ direito no cmd/PowerShell → "Executar como administrador", navegue até a
 pasta e rode:
 
 ```
-python chat.py
+python assistente_voz_offline.py
 ```
 
 Você vai ouvir "Assistente de voz offline ativado" — a partir daí, fale.
@@ -100,6 +104,29 @@ Edite o **comandos.json** (não precisa mexer no código):
 Se a precisão do modelo pequeno não for suficiente para o que você precisa,
 troque para o modelo maior (`vosk-model-pt-fb-v0.1.1...`) — o código não
 muda, só a pasta `modelo_vosk`.
+
+## Melhorando a precisão do reconhecimento
+
+O `chat.py` já vem com duas melhorias que aumentam bastante a precisão:
+
+1. **Reconhecimento restrito por vocabulário**: em vez de tentar entender
+   qualquer palavra do português, o assistente só escolhe entre os comandos
+   que você tem cadastrados (fixos + os do `comandos.json`). Isso reduz muito
+   os erros de transcrição.
+2. **Correção aproximada (fuzzy)**: se ele ouvir algo bem parecido com um
+   comando (ex.: "abrir bloco de nota" em vez de "abrir bloco de notas"),
+   ainda assim executa o comando certo.
+
+Se mesmo assim a precisão não estiver boa o suficiente:
+- Troque para o modelo maior (`vosk-model-pt-fb-v0.1.1...`, ~1.5 GB) — ele
+  é mais preciso que o pequeno, principalmente com ruído de fundo.
+- Fale de forma clara e num ritmo normal (nem muito rápido, nem exagerado),
+  a uma distância razoável do microfone.
+- Cheque se o Windows está usando o microfone certo como padrão
+  (Configurações → Sistema → Som → Entrada).
+- Se tiver muito ruído de fundo constante, um microfone com cancelamento de
+  ruído (headset) ajuda bastante — o modelo Vosk não faz cancelamento de
+  ruído sozinho.
 
 ## Observações
 
