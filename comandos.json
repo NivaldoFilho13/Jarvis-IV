@@ -13,5 +13,9 @@
   },
   "personalizados": {
     "abrir downloads": "explorer.exe %USERPROFILE%\\Downloads"
+  },
+  "configuracoes": {
+    "microfone_indice": null,
+    "ganho_audio": 6.0
   }
 }
