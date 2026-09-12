@@ -1,4 +1,4 @@
-# Assistente de Voz OFFLINE (Windows)
+# JARVIS-IV
 
 Versão que roda **sem internet e sem créditos de API**. O reconhecimento de
 voz é feito localmente no seu PC usando o [Vosk](https://alphacephei.com/vosk/),
@@ -17,7 +17,7 @@ Baixe em https://python.org (marque "Add Python to PATH" na instalação).
 Abra o cmd na pasta dos arquivos e rode:
 
 ```
-pip install vosk sounddevice pyttsx3 pycaw comtypes keyboard
+pip install vosk sounddevice numpy pyttsx3 pycaw comtypes keyboard
 ```
 
 Nenhuma dessas precisa de compilação complicada — diferente da versão antiga,
@@ -127,6 +127,36 @@ Se mesmo assim a precisão não estiver boa o suficiente:
 - Se tiver muito ruído de fundo constante, um microfone com cancelamento de
   ruído (headset) ajuda bastante — o modelo Vosk não faz cancelamento de
   ruído sozinho.
+
+## Se você precisa aproximar muito o microfone pra ele escutar
+
+O `chat.py` agora amplifica o áudio por software e permite escolher o
+microfone certo:
+
+1. **Na primeira vez que rodar**, ele vai listar os microfones disponíveis
+   no terminal, tipo:
+   ```
+   Microfones disponíveis:
+     [0] Microfone (Realtek Audio)
+     [1] Headset Bluetooth
+   ```
+   Digite o número do microfone que você realmente usa e aperte Enter. Essa
+   escolha fica salva no `comandos.json` — não pergunta de novo depois.
+
+2. **Ganho de áudio**: por padrão o volume captado é multiplicado por `6.0`
+   antes de ir pro reconhecimento. Se ainda estiver fraco, abra o
+   `comandos.json` e aumente o valor de `"ganho_audio"` (em
+   `"configuracoes"`), por exemplo para `10.0`. Se começar a distorcer ou
+   pegar ruído demais, diminua.
+
+3. **Também vale aumentar o microfone no Windows**: clique com o botão
+   direito no ícone de som na barra de tarefas → "Configurações de som" →
+   "Mais configurações de dispositivo de som" → aba "Gravação" → clique
+   duas vezes no seu microfone → aba "Níveis" → suba o volume e, se tiver a
+   opção, ative "Impulso de microfone" (Microphone Boost).
+
+Se depois de tudo isso ainda estiver captando fraco, o microfone físico pode
+ser o limitador — um headset USB costuma resolver isso de vez.
 
 ## Observações
 
