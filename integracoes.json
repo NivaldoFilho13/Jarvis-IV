@@ -1,0 +1,16 @@
+{
+  "ias": {
+    "zez0": {
+      "tipo": "comando",
+      "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0"
+    },
+    "celina": {
+      "tipo": "comando",
+      "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_A_CELINA"
+    },
+    "kroga": {
+      "tipo": "comando",
+      "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_KROGA_BOT"
+    }
+  }
+}
