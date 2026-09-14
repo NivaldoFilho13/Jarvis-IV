@@ -3,12 +3,18 @@ import json
 import os
 import queue
 import subprocess
+import sys
+import threading
+import time
+import urllib.request
 import webbrowser
 from datetime import datetime
 
 import numpy as np
 import sounddevice as sd
 from vosk import Model, KaldiRecognizer
+
+import webview
 
 import pyttsx3
 import keyboard
@@ -20,8 +26,15 @@ from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 PASTA_BASE = os.path.dirname(__file__)
 CONFIG_PATH = os.path.join(PASTA_BASE, "comandos.json")
 MODELO_PATH = os.path.join(PASTA_BASE, "modelo_vosk")
+INTERFACE_PATH = os.path.join(PASTA_BASE, "interface.html")
+INTEGRACOES_PATH = os.path.join(PASTA_BASE, "integracoes.json")
+FLUXOS_PATH = os.path.join(PASTA_BASE, "fluxos.json")
 
 TAXA_AMOSTRAGEM = 16000
+
+JANELA = None
+INTEGRACOES = {}
+FLUXOS = {}
 
 
 def carregar_config():
@@ -42,7 +55,11 @@ def carregar_config():
             "personalizados": {
                 "abrir downloads": f"explorer.exe {os.path.join(os.path.expanduser('~'), 'Downloads')}"
             },
-            "configuracoes": {"microfone_indice": None, "ganho_audio": 6.0},
+            "configuracoes": {
+                "microfone_indice": None,
+                "microfone_nome": None,
+                "ganho_audio": 6.0,
+            },
         }
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
             json.dump(padrao, f, ensure_ascii=False, indent=2)
@@ -53,6 +70,7 @@ def carregar_config():
 
     config.setdefault("configuracoes", {})
     config["configuracoes"].setdefault("microfone_indice", None)
+    config["configuracoes"].setdefault("microfone_nome", None)
     config["configuracoes"].setdefault("ganho_audio", 6.0)
     return config
 
@@ -77,12 +95,21 @@ for voz in motor_voz.getProperty("voices"):
 
 def falar(texto):
     print(f"[Assistente] {texto}")
+    if JANELA is not None:
+        try:
+            JANELA.evaluate_js("iniciarFala()")
+        except Exception:
+            pass
     motor_voz.say(texto)
     motor_voz.runAndWait()
+    if JANELA is not None:
+        try:
+            JANELA.evaluate_js("pararFala()")
+        except Exception:
+            pass
 
 
 def saudacao_por_horario():
-
     hora = datetime.now().hour
     if 5 <= hora < 12:
         return "Bom dia"
@@ -109,6 +136,113 @@ def mudo(ativar=True):
     vol.SetMute(1 if ativar else 0, None)
 
 
+def carregar_integracoes():
+    if not os.path.exists(INTEGRACOES_PATH):
+        padrao = {
+            "ias": {
+                "zez0": {
+                    "tipo": "comando",
+                    "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0",
+                },
+                "celina": {
+                    "tipo": "comando",
+                    "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_A_CELINA",
+                },
+                "kroga": {
+                    "tipo": "comando",
+                    "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_KROGA_BOT",
+                },
+            }
+        }
+        with open(INTEGRACOES_PATH, "w", encoding="utf-8") as f:
+            json.dump(padrao, f, ensure_ascii=False, indent=2)
+        return padrao
+
+    with open(INTEGRACOES_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def carregar_fluxos():
+    if not os.path.exists(FLUXOS_PATH):
+        padrao = {
+            "fluxos": [
+                {
+                    "nome": "exemplo de fluxo",
+                    "gatilho": "rotina de exemplo",
+                    "etapas": [
+                        {"ia": "zez0", "tarefa": "iniciar"},
+                        {"ia": "kroga", "tarefa": "enviar resumo do dia"},
+                    ],
+                }
+            ]
+        }
+        with open(FLUXOS_PATH, "w", encoding="utf-8") as f:
+            json.dump(padrao, f, ensure_ascii=False, indent=2)
+        return padrao
+
+    with open(FLUXOS_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def executar_ia(nome_ia, tarefa, integracoes):
+    definicao = integracoes.get("ias", {}).get(nome_ia)
+    if not definicao:
+        print(f"IA '{nome_ia}' não está cadastrada em integracoes.json.")
+        return False
+
+    tipo = definicao.get("tipo")
+
+    if tipo == "comando":
+        comando = definicao.get("comando", "")
+        if not comando or comando.startswith("SUBSTITUA"):
+            print(
+                f"O comando de '{nome_ia}' ainda não foi configurado em integracoes.json."
+            )
+            return False
+        try:
+            subprocess.Popen(comando, shell=True)
+            return True
+        except Exception as e:
+            print(f"Erro ao acionar {nome_ia}: {e}")
+            return False
+
+    if tipo == "webhook":
+        url = definicao.get("url", "")
+        if not url or url.startswith("SUBSTITUA"):
+            print(
+                f"A URL de '{nome_ia}' ainda não foi configurada em integracoes.json."
+            )
+            return False
+        try:
+            dados = json.dumps({"tarefa": tarefa}).encode("utf-8")
+            requisicao = urllib.request.Request(
+                url, data=dados, headers={"Content-Type": "application/json"}
+            )
+            urllib.request.urlopen(requisicao, timeout=5)
+            return True
+        except Exception as e:
+            print(f"Erro ao acionar {nome_ia} via webhook: {e}")
+            return False
+
+    print(f"Tipo de integração desconhecido para '{nome_ia}': {tipo}")
+    return False
+
+
+def executar_fluxo(fluxo, integracoes):
+    nome_fluxo = fluxo.get("nome") or fluxo.get("gatilho", "fluxo")
+    falar(f"Executando {nome_fluxo}")
+
+    for etapa in fluxo.get("etapas", []):
+        nome_ia = etapa.get("ia", "")
+        tarefa = etapa.get("tarefa", "")
+        if executar_ia(nome_ia, tarefa, integracoes):
+            falar(f"{nome_ia} acionado")
+        else:
+            falar(f"Não consegui acionar {nome_ia}")
+
+    falar(f"{nome_fluxo} concluído")
+
+
 FRASES_FIXAS = [
     "sair",
     "parar assistente",
@@ -127,6 +261,12 @@ FRASES_FIXAS = [
     "silenciar",
     "desmutar",
     "tirar o mudo",
+    "mostrar jarvis",
+    "abrir jarvis",
+    "abrir interface",
+    "esconder jarvis",
+    "fechar jarvis",
+    "fechar interface",
 ]
 
 
@@ -136,24 +276,33 @@ def construir_lista_frases(config):
         + list(config.get("programas", {}).keys())
         + list(config.get("personalizados", {}).keys())
     )
-    return FRASES_FIXAS + dinamicas
+
+    frases_ias = []
+    for nome_ia in INTEGRACOES.get("ias", {}).keys():
+        for verbo in ["iniciar", "abrir", "rodar", "ativar"]:
+            frases_ias.append(f"{verbo} {nome_ia}")
+
+    frases_fluxos = [
+        fluxo.get("gatilho", "")
+        for fluxo in FLUXOS.get("fluxos", [])
+        if fluxo.get("gatilho")
+    ]
+
+    return FRASES_FIXAS + dinamicas + frases_ias + frases_fluxos
 
 
 def construir_gramatica(config):
-
     frases = construir_lista_frases(config)
     return frases + ["pesquisar por", "pesquisa por", "[unk]"]
 
 
 def corrigir_com_fuzzy(texto, config):
-
     frases = construir_lista_frases(config)
     mais_proxima = difflib.get_close_matches(texto, frases, n=1, cutoff=0.6)
     return mais_proxima[0] if mais_proxima else texto
 
 
 def listar_microfones():
-
     print("\nMicrofones disponíveis:")
     dispositivos = sd.query_devices()
     entradas = []
@@ -166,10 +315,27 @@ def listar_microfones():
 
 
 def escolher_microfone(config):
+    nome_salvo = config["configuracoes"].get("microfone_nome")
+    if nome_salvo:
+        for indice, dispositivo in enumerate(sd.query_devices()):
+            if (
+                dispositivo["max_input_channels"] > 0
+                and nome_salvo in dispositivo["name"]
+            ):
+                return indice
+        print(
+            f"Microfone salvo ('{nome_salvo}') não foi encontrado agora — tentando pelo índice salvo."
+        )
 
     indice_salvo = config["configuracoes"].get("microfone_indice")
     if indice_salvo is not None:
         return indice_salvo
+
+    if not sys.stdin.isatty():
+        print(
+            "Execução automática sem terminal interativo — usando o microfone padrão do Windows."
+        )
+        return None
 
     entradas = listar_microfones()
     if not entradas:
@@ -190,6 +356,7 @@ def escolher_microfone(config):
         return None
 
     config["configuracoes"]["microfone_indice"] = indice
+    config["configuracoes"]["microfone_nome"] = sd.query_devices()[indice]["name"]
     salvar_config(config)
     print(
         f"Microfone [{indice}] salvo em comandos.json. Da próxima vez não vai perguntar de novo."
@@ -237,6 +404,12 @@ def processar_comando(texto, config):
         falar("Encerrando assistente. Até logo!")
         return False
 
+    for fluxo in FLUXOS.get("fluxos", []):
+        gatilho = fluxo.get("gatilho", "")
+        if gatilho and gatilho in texto:
+            executar_fluxo(fluxo, INTEGRACOES)
+            return True
+
     if "tocar" in texto or "pausar" in texto:
         keyboard.send("play/pause media")
         falar("Ok")
@@ -266,6 +439,35 @@ def processar_comando(texto, config):
         mudo(False)
         falar("Áudio ativado")
         return True
+
+    if (
+        "mostrar jarvis" in texto
+        or "abrir jarvis" in texto
+        or "abrir interface" in texto
+    ):
+        if JANELA is not None:
+            JANELA.show()
+            falar("Interface ativada")
+        return True
+    if (
+        "esconder jarvis" in texto
+        or "fechar jarvis" in texto
+        or "fechar interface" in texto
+    ):
+        if JANELA is not None:
+            JANELA.hide()
+            falar("Interface ocultada")
+        return True
+
+    for nome_ia in INTEGRACOES.get("ias", {}).keys():
+        if nome_ia in texto and any(
+            v in texto for v in ["iniciar", "abrir", "rodar", "ativar"]
+        ):
+            if executar_ia(nome_ia, "abrir", INTEGRACOES):
+                falar(f"Acionando {nome_ia}")
+            else:
+                falar(f"Não consegui acionar {nome_ia}")
+            return True
 
     if texto.startswith("pesquisar por") or texto.startswith("pesquisa por"):
         termo = texto.split("por", 1)[1].strip()
@@ -300,6 +502,7 @@ def processar_comando(texto, config):
 
 
 fila_audio = queue.Queue()
+fila_comandos = queue.Queue()
 GANHO_ATUAL = 6.0
 
 
@@ -319,49 +522,115 @@ def verificar_modelo():
         )
 
 
-def main():
-    verificar_modelo()
-    config = carregar_config()
-
-    global GANHO_ATUAL
-    GANHO_ATUAL = config["configuracoes"].get("ganho_audio", 6.0)
-    indice_microfone = escolher_microfone(config)
-
-    print("Carregando modelo de reconhecimento de voz (pode levar alguns segundos)...")
-    modelo = Model(MODELO_PATH)
-    gramatica = construir_gramatica(config)
-    reconhecedor = KaldiRecognizer(
-        modelo, TAXA_AMOSTRAGEM, json.dumps(gramatica, ensure_ascii=False)
+def abrir_entrada_audio(
+    indice_microfone, callback, tentativas_max=20, intervalo_segundos=3
+):
+    for tentativa in range(1, tentativas_max + 1):
+        try:
+            return sd.RawInputStream(
+                samplerate=TAXA_AMOSTRAGEM,
+                blocksize=8000,
+                dtype="int16",
+                channels=1,
+                device=indice_microfone,
+                callback=callback,
+            )
+        except Exception as e:
+            print(
+                f"Sistema de áudio ainda não está pronto ({e}). Tentativa {tentativa}/{tentativas_max}..."
+            )
+            time.sleep(intervalo_segundos)
+    raise RuntimeError(
+        "Não foi possível acessar o microfone depois de várias tentativas."
     )
 
-    falar(
-        f"{saudacao_por_horario()}, senhor. Assistente ativado, pode falar seus comandos."
-    )
 
-    continuar = True
-    with sd.RawInputStream(
-        samplerate=TAXA_AMOSTRAGEM,
-        blocksize=8000,
-        dtype="int16",
-        channels=1,
-        device=indice_microfone,
-        callback=callback_audio,
-    ):
+def thread_reconhecimento_voz(indice_microfone, reconhecedor):
+    with abrir_entrada_audio(indice_microfone, callback_audio):
         print("Ouvindo... (fale um comando ou diga 'sair')")
-        while continuar:
+        while True:
             dados = fila_audio.get()
             if reconhecedor.AcceptWaveform(dados):
                 resultado = json.loads(reconhecedor.Result())
                 texto = resultado.get("text", "")
                 if texto:
-                    print(f"Você disse: {texto}")
-                    continuar = processar_comando(texto, config)
+                    print(f"[voz] {texto}")
+                    fila_comandos.put(texto)
 
 
-if __name__ == "__main__":
+def thread_entrada_texto():
+    if not sys.stdin.isatty():
+        return
+    print("Também dá pra digitar um comando aqui e apertar Enter.")
+    while True:
+        try:
+            linha = input()
+        except (EOFError, OSError):
+            break
+        linha = linha.strip()
+        if linha:
+            fila_comandos.put(linha)
+
+
+def loop_reconhecimento(janela):
+    global JANELA, GANHO_ATUAL, INTEGRACOES, FLUXOS
+    JANELA = janela
+
     try:
-        main()
+        verificar_modelo()
+        config = carregar_config()
+        INTEGRACOES = carregar_integracoes()
+        FLUXOS = carregar_fluxos()
+
+        GANHO_ATUAL = config["configuracoes"].get("ganho_audio", 6.0)
+        indice_microfone = escolher_microfone(config)
+
+        print(
+            "Carregando modelo de reconhecimento de voz (pode levar alguns segundos)..."
+        )
+        modelo = Model(MODELO_PATH)
+        gramatica = construir_gramatica(config)
+        reconhecedor = KaldiRecognizer(
+            modelo, TAXA_AMOSTRAGEM, json.dumps(gramatica, ensure_ascii=False)
+        )
+
+        threading.Thread(
+            target=thread_reconhecimento_voz,
+            args=(indice_microfone, reconhecedor),
+            daemon=True,
+        ).start()
+        threading.Thread(target=thread_entrada_texto, daemon=True).start()
+
+        falar(
+            f"{saudacao_por_horario()}, senhor. Assistente ativado, pode falar ou digitar seus comandos."
+        )
+
+        continuar = True
+        while continuar:
+            texto = fila_comandos.get()
+            continuar = processar_comando(texto, config)
     except FileNotFoundError as e:
         print(str(e))
     except KeyboardInterrupt:
         print("\nEncerrado pelo usuário.")
+    finally:
+        janela.destroy()
+
+
+def main():
+    janela = webview.create_window(
+        "Jarvis",
+        INTERFACE_PATH,
+        width=260,
+        height=260,
+        frameless=True,
+        easy_drag=True,
+        on_top=True,
+        transparent=True,
+        hidden=True,
+    )
+    webview.start(loop_reconhecimento, janela)
+
+
+if __name__ == "__main__":
+    main()
