@@ -1,0 +1,12 @@
+{
+  "fluxos": [
+    {
+      "nome": "exemplo de fluxo",
+      "gatilho": "rotina de exemplo",
+      "etapas": [
+        {"ia": "zez0", "tarefa": "iniciar"},
+        {"ia": "kroga", "tarefa": "enviar resumo do dia"}
+      ]
+    }
+  ]
+}
