@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Jarvis</title>
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+    }
+
+    body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at center, #050a16 0%, #010104 75%);
+        -webkit-app-region: drag;
+    }
+
+    canvas {
+        display: block;
+    }
+
+    #rotulo {
+        position: absolute;
+        bottom: 22px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-family: "Segoe UI", sans-serif;
+        font-size: 12px;
+        letter-spacing: 4px;
+        color: rgba(150, 190, 255, 0.5);
+        z-index: 2;
+        text-transform: uppercase;
+        pointer-events: none;
+    }
+</style>
+</head>
+<body>
+    <canvas id="nebulosa"></canvas>
+    <div id="rotulo">jarvis</div>
+
+<script>
+    var canvas = document.getElementById("nebulosa");
+    var ctx = canvas.getContext("2d");
+    var LARGURA = window.innerWidth;
+    var ALTURA = window.innerHeight;
+    canvas.width = LARGURA;
+    canvas.height = ALTURA;
+
+    var centroX = LARGURA / 2;
+    var centroY = ALTURA / 2;
+
+    var PALETA = [
+        "150, 200, 255",
+        "120, 170, 255",
+        "100, 140, 240",
+        "170, 150, 255",
+        "190, 220, 255",
+        "80, 120, 220"
+    ];
+
+    function amostraGaussiana() {
+        var soma = 0;
+        for (var i = 0; i < 6; i++) soma += Math.random();
+        return (soma / 6 - 0.5) * 2;
+    }
+
+    function criarParticulas(quantidade) {
+        var lista = [];
+        for (var i = 0; i < quantidade; i++) {
+            var raioDisco = Math.min(LARGURA, ALTURA) * 0.42;
+            var x = centroX + amostraGaussiana() * raioDisco;
+            var y = centroY + amostraGaussiana() * raioDisco;
+            lista.push({
+                x: x,
+                y: y,
+                origemX: x,
+                origemY: y,
+                raio: Math.random() * 2.2 + 0.6,
+                cor: PALETA[Math.floor(Math.random() * PALETA.length)],
+                fase: Math.random() * Math.PI * 2,
+                velocidadeFase: Math.random() * 0.02 + 0.008,
+                deslocX: Math.random() * 14 - 7,
+                deslocY: Math.random() * 14 - 7,
+                brilhoBase: Math.random() * 0.5 + 0.35
+            });
+        }
+        return lista;
+    }
+
+    var particulas = criarParticulas(180);
+    var falando = false;
+    var intensidadeFala = 0;
+
+    function iniciarFala() {
+        falando = true;
+    }
+
+    function pararFala() {
+        falando = false;
+    }
+
+    function desenhar(tempo) {
+        ctx.clearRect(0, 0, LARGURA, ALTURA);
+
+        intensidadeFala += ((falando ? 1 : 0) - intensidadeFala) * 0.08;
+
+        for (var i = 0; i < particulas.length; i++) {
+            var p = particulas[i];
+            p.fase += p.velocidadeFase * (1 + intensidadeFala * 1.8);
+
+            var oscilacao = Math.sin(p.fase);
+            var brilho = p.brilhoBase + oscilacao * 0.3 + intensidadeFala * 0.35;
+            brilho = Math.max(0.05, Math.min(1, brilho));
+
+            var raioAtual = p.raio * (1 + intensidadeFala * 0.6 + oscilacao * 0.15);
+
+            var x = p.origemX + Math.sin(tempo * 0.0003 + p.fase) * p.deslocX;
+            var y = p.origemY + Math.cos(tempo * 0.00025 + p.fase) * p.deslocY;
+
+            var gradiente = ctx.createRadialGradient(x, y, 0, x, y, raioAtual * 6);
+            gradiente.addColorStop(0, "rgba(" + p.cor + ", " + brilho + ")");
+            gradiente.addColorStop(0.4, "rgba(" + p.cor + ", " + (brilho * 0.25) + ")");
+            gradiente.addColorStop(1, "rgba(" + p.cor + ", 0)");
+
+            ctx.fillStyle = gradiente;
+            ctx.beginPath();
+            ctx.arc(x, y, raioAtual * 6, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "rgba(255, 255, 255, " + (brilho * 0.9) + ")";
+            ctx.beginPath();
+            ctx.arc(x, y, raioAtual * 0.6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        requestAnimationFrame(desenhar);
+    }
+
+    requestAnimationFrame(desenhar);
+</script>
+</body>
+</html>
