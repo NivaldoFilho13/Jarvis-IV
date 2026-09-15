@@ -1,5 +1,6 @@
 import difflib
 import json
+import math
 import os
 import queue
 import subprocess
@@ -59,6 +60,8 @@ def carregar_config():
                 "microfone_indice": None,
                 "microfone_nome": None,
                 "ganho_audio": 6.0,
+                "tempo_silencio_max": 1.6,
+                "tempo_max_frase": 12,
             },
         }
         with open(CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -72,6 +75,8 @@ def carregar_config():
     config["configuracoes"].setdefault("microfone_indice", None)
     config["configuracoes"].setdefault("microfone_nome", None)
     config["configuracoes"].setdefault("ganho_audio", 6.0)
+    config["configuracoes"].setdefault("tempo_silencio_max", 1.6)
+    config["configuracoes"].setdefault("tempo_max_frase", 12)
     return config
 
 
@@ -100,11 +105,59 @@ def falar(texto):
             JANELA.evaluate_js("iniciarFala()")
         except Exception:
             pass
+    thread_balanco = _iniciar_balanco_janela()
     motor_voz.say(texto)
     motor_voz.runAndWait()
+    _parar_balanco_janela(thread_balanco)
     if JANELA is not None:
         try:
             JANELA.evaluate_js("pararFala()")
+        except Exception:
+            pass
+
+
+def _iniciar_balanco_janela():
+    if JANELA is None:
+        return None
+    try:
+        x0, y0 = JANELA.x, JANELA.y
+    except Exception:
+        return None
+
+    parar = threading.Event()
+
+    def balancar():
+        inicio = time.time()
+        while not parar.is_set():
+            deslocamento_x = int(5 * math.sin((time.time() - inicio) * 9))
+            deslocamento_y = int(3 * math.cos((time.time() - inicio) * 7))
+            try:
+                JANELA.move(x0 + deslocamento_x, y0 + deslocamento_y)
+            except Exception:
+                break
+            time.sleep(0.04)
+        try:
+            JANELA.move(x0, y0)
+        except Exception:
+            pass
+
+    thread = threading.Thread(target=balancar, daemon=True)
+    thread.start()
+    return (thread, parar)
+
+
+def _parar_balanco_janela(dados_thread):
+    if not dados_thread:
+        return
+    thread, parar = dados_thread
+    parar.set()
+    thread.join(timeout=1)
+
+
+def mostrar_icone(categoria):
+    if JANELA is not None:
+        try:
+            JANELA.evaluate_js(f"mostrarIcone('{categoria}')")
         except Exception:
             pass
 
@@ -142,7 +195,7 @@ def carregar_integracoes():
             "ias": {
                 "zez0": {
                     "tipo": "comando",
-                    "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0",
+                    "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0 {tarefa}",
                 },
                 "celina": {
                     "tipo": "comando",
@@ -167,13 +220,15 @@ def carregar_fluxos():
         padrao = {
             "fluxos": [
                 {
-                    "nome": "exemplo de fluxo",
-                    "gatilho": "rotina de exemplo",
-                    "etapas": [
-                        {"ia": "zez0", "tarefa": "iniciar"},
-                        {"ia": "kroga", "tarefa": "enviar resumo do dia"},
-                    ],
-                }
+                    "nome": "resumo do dia",
+                    "gatilho": "resumo do dia",
+                    "etapas": [{"ia": "kroga", "tarefa": "kroga3"}],
+                },
+                {
+                    "nome": "sessão de jogos",
+                    "gatilho": "jogar cobrinha",
+                    "etapas": [{"ia": "zez0", "tarefa": "snake"}],
+                },
             ]
         }
         with open(FLUXOS_PATH, "w", encoding="utf-8") as f:
@@ -199,8 +254,9 @@ def executar_ia(nome_ia, tarefa, integracoes):
                 f"O comando de '{nome_ia}' ainda não foi configurado em integracoes.json."
             )
             return False
+        comando_final = comando.replace("{tarefa}", tarefa)
         try:
-            subprocess.Popen(comando, shell=True)
+            subprocess.Popen(comando_final, shell=True)
             return True
         except Exception as e:
             print(f"Erro ao acionar {nome_ia}: {e}")
@@ -230,6 +286,7 @@ def executar_ia(nome_ia, tarefa, integracoes):
 
 def executar_fluxo(fluxo, integracoes):
     nome_fluxo = fluxo.get("nome") or fluxo.get("gatilho", "fluxo")
+    mostrar_icone("fluxo")
     falar(f"Executando {nome_fluxo}")
 
     for etapa in fluxo.get("etapas", []):
@@ -412,31 +469,38 @@ def processar_comando(texto, config):
 
     if "tocar" in texto or "pausar" in texto:
         keyboard.send("play/pause media")
+        mostrar_icone("midia")
         falar("Ok")
         return True
     if "próxima música" in texto or "próxima faixa" in texto:
         keyboard.send("next track")
+        mostrar_icone("midia")
         falar("Próxima faixa")
         return True
     if "música anterior" in texto or "faixa anterior" in texto:
         keyboard.send("previous track")
+        mostrar_icone("midia")
         falar("Faixa anterior")
         return True
 
     if "aumentar volume" in texto or "aumenta o volume" in texto:
         ajustar_volume(0.15)
+        mostrar_icone("volume")
         falar("Volume aumentado")
         return True
     if "diminuir volume" in texto or "diminui o volume" in texto:
         ajustar_volume(-0.15)
+        mostrar_icone("volume")
         falar("Volume diminuído")
         return True
     if "mudo" in texto or "silenciar" in texto:
         mudo(True)
+        mostrar_icone("volume")
         falar("Áudio mudo")
         return True
     if "desmutar" in texto or "tirar o mudo" in texto:
         mudo(False)
+        mostrar_icone("volume")
         falar("Áudio ativado")
         return True
 
@@ -463,6 +527,7 @@ def processar_comando(texto, config):
         if nome_ia in texto and any(
             v in texto for v in ["iniciar", "abrir", "rodar", "ativar"]
         ):
+            mostrar_icone("ia")
             if executar_ia(nome_ia, "abrir", INTEGRACOES):
                 falar(f"Acionando {nome_ia}")
             else:
@@ -472,17 +537,20 @@ def processar_comando(texto, config):
     if texto.startswith("pesquisar por") or texto.startswith("pesquisa por"):
         termo = texto.split("por", 1)[1].strip()
         webbrowser.open(f"https://www.google.com/search?q={termo}")
+        mostrar_icone("site")
         falar(f"Pesquisando por {termo}")
         return True
 
     for nome, url in config.get("sites", {}).items():
         if nome in texto:
             webbrowser.open(url)
+            mostrar_icone("site")
             falar(f"Abrindo {nome}")
             return True
 
     for nome, caminho in config.get("programas", {}).items():
         if nome in texto:
+            mostrar_icone("programa")
             if abrir_programa(caminho):
                 falar(f"Abrindo {nome}")
             else:
@@ -491,6 +559,7 @@ def processar_comando(texto, config):
 
     for nome, cmd in config.get("personalizados", {}).items():
         if nome in texto:
+            mostrar_icone("programa")
             if executar_comando_personalizado(cmd):
                 falar(f"Executando {nome}")
             else:
@@ -545,17 +614,45 @@ def abrir_entrada_audio(
     )
 
 
-def thread_reconhecimento_voz(indice_microfone, reconhecedor):
+def thread_reconhecimento_voz(
+    indice_microfone, reconhecedor, tempo_silencio_max=1.6, tempo_max_frase=12
+):
+    LIMIAR_SILENCIO = 350
+    TAMANHO_CHUNK_SEGUNDOS = 8000 / TAXA_AMOSTRAGEM
+
+    segundos_silencio = 0.0
+    segundos_falando = 0.0
+    teve_fala = False
+
     with abrir_entrada_audio(indice_microfone, callback_audio):
         print("Ouvindo... (fale um comando ou diga 'sair')")
         while True:
             dados = fila_audio.get()
-            if reconhecedor.AcceptWaveform(dados):
-                resultado = json.loads(reconhecedor.Result())
+            reconhecedor.AcceptWaveform(dados)
+
+            amostras = np.frombuffer(dados, dtype=np.int16).astype(np.float32)
+            volume = np.sqrt(np.mean(amostras**2)) if len(amostras) else 0.0
+
+            if volume > LIMIAR_SILENCIO:
+                teve_fala = True
+                segundos_silencio = 0.0
+                segundos_falando += TAMANHO_CHUNK_SEGUNDOS
+            else:
+                segundos_silencio += TAMANHO_CHUNK_SEGUNDOS
+
+            frase_completa = teve_fala and segundos_silencio >= tempo_silencio_max
+            frase_longa_demais = teve_fala and segundos_falando >= tempo_max_frase
+
+            if frase_completa or frase_longa_demais:
+                resultado = json.loads(reconhecedor.FinalResult())
                 texto = resultado.get("text", "")
                 if texto:
                     print(f"[voz] {texto}")
                     fila_comandos.put(texto)
+                reconhecedor.Reset()
+                teve_fala = False
+                segundos_silencio = 0.0
+                segundos_falando = 0.0
 
 
 def thread_entrada_texto():
@@ -596,7 +693,12 @@ def loop_reconhecimento(janela):
 
         threading.Thread(
             target=thread_reconhecimento_voz,
-            args=(indice_microfone, reconhecedor),
+            args=(
+                indice_microfone,
+                reconhecedor,
+                config["configuracoes"].get("tempo_silencio_max", 1.6),
+                config["configuracoes"].get("tempo_max_frase", 12),
+            ),
             daemon=True,
         ).start()
         threading.Thread(target=thread_entrada_texto, daemon=True).start()
