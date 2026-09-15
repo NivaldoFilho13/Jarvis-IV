@@ -16,6 +16,9 @@
   },
   "configuracoes": {
     "microfone_indice": null,
-    "ganho_audio": 6.0
+    "microfone_nome": null,
+    "ganho_audio": 6.0,
+    "tempo_silencio_max": 1.6,
+    "tempo_max_frase": 12
   }
 }
