@@ -193,9 +193,21 @@ def carregar_integracoes():
     if not os.path.exists(INTEGRACOES_PATH):
         padrao = {
             "ias": {
-                "zez0": {
+                "cobrinha": {
                     "tipo": "comando",
-                    "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0 {tarefa}",
+                    "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0_NA_COBRINHA",
+                },
+                "campo minado": {
+                    "tipo": "comando",
+                    "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0_NO_CAMPO_MINADO",
+                },
+                "pacman": {
+                    "tipo": "comando",
+                    "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0_NO_PACMAN",
+                },
+                "pokemon": {
+                    "tipo": "comando",
+                    "comando": "SUBSTITUA_CAMINHO\\EmuHawk.exe --lua=SUBSTITUA_CAMINHO\\script_zez0.lua SUBSTITUA_CAMINHO\\pokemon_firered.gba",
                 },
                 "celina": {
                     "tipo": "comando",
@@ -226,8 +238,8 @@ def carregar_fluxos():
                 },
                 {
                     "nome": "sessão de jogos",
-                    "gatilho": "jogar cobrinha",
-                    "etapas": [{"ia": "zez0", "tarefa": "snake"}],
+                    "gatilho": "sessão de jogos",
+                    "etapas": [{"ia": "cobrinha", "tarefa": "abrir"}],
                 },
             ]
         }
@@ -594,6 +606,7 @@ def verificar_modelo():
 def abrir_entrada_audio(
     indice_microfone, callback, tentativas_max=20, intervalo_segundos=3
 ):
+
     for tentativa in range(1, tentativas_max + 1):
         try:
             return sd.RawInputStream(
@@ -617,6 +630,7 @@ def abrir_entrada_audio(
 def thread_reconhecimento_voz(
     indice_microfone, reconhecedor, tempo_silencio_max=1.6, tempo_max_frase=12
 ):
+
     LIMIAR_SILENCIO = 350
     TAMANHO_CHUNK_SEGUNDOS = 8000 / TAXA_AMOSTRAGEM
 
