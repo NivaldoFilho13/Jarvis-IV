@@ -1,11 +1,17 @@
 {
   "fluxos": [
     {
-      "nome": "exemplo de fluxo",
-      "gatilho": "rotina de exemplo",
+      "nome": "resumo do dia",
+      "gatilho": "resumo do dia",
       "etapas": [
-        {"ia": "zez0", "tarefa": "iniciar"},
-        {"ia": "kroga", "tarefa": "enviar resumo do dia"}
+        {"ia": "kroga", "tarefa": "kroga3"}
+      ]
+    },
+    {
+      "nome": "sessão de jogos",
+      "gatilho": "sessão de jogos",
+      "etapas": [
+        {"ia": "cobrinha", "tarefa": "abrir"}
       ]
     }
   ]
