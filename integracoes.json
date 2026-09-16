@@ -1,8 +1,20 @@
 {
   "ias": {
-    "zez0": {
+    "cobrinha": {
       "tipo": "comando",
-      "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0"
+      "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0_NA_COBRINHA"
+    },
+    "campo minado": {
+      "tipo": "comando",
+      "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0_NO_CAMPO_MINADO"
+    },
+    "pacman": {
+      "tipo": "comando",
+      "comando": "SUBSTITUA_PELO_COMANDO_QUE_INICIA_O_ZEZ0_NO_PACMAN"
+    },
+    "pokemon": {
+      "tipo": "comando",
+      "comando": "SUBSTITUA_CAMINHO\\EmuHawk.exe --lua=SUBSTITUA_CAMINHO\\script_zez0.lua SUBSTITUA_CAMINHO\\pokemon_firered.gba"
     },
     "celina": {
       "tipo": "comando",
