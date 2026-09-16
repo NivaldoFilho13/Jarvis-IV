@@ -1,4 +1,4 @@
-# JARVIS-IV
+# Jarvis_IV
 
 Versão que roda **sem internet e sem créditos de API**. O reconhecimento de
 voz é feito localmente no seu PC usando o [Vosk](https://alphacephei.com/vosk/),
@@ -17,11 +17,16 @@ Baixe em https://python.org (marque "Add Python to PATH" na instalação).
 Abra o cmd na pasta dos arquivos e rode:
 
 ```
-pip install vosk sounddevice numpy pyttsx3 pycaw comtypes keyboard
+pip install vosk sounddevice numpy pyttsx3 pycaw comtypes keyboard pywebview
 ```
 
 Nenhuma dessas precisa de compilação complicada — diferente da versão antiga,
 você **não precisa mais do pyaudio nem do pipwin**.
+
+> `pywebview` usa o WebView2 do Windows pra desenhar a janela. Ele já vem
+> instalado por padrão no Windows 10/11 atualizados; se der erro relacionado
+> a "WebView2" ao abrir a interface, baixe o runtime em
+> https://developer.microsoft.com/microsoft-edge/webview2/ (é rápido e grátis).
 
 ## 3. Baixar o modelo de voz em português (uma vez só, precisa de internet)
 
@@ -32,13 +37,14 @@ você **não precisa mais do pyaudio nem do pipwin**.
    - Para começar, use o modelo pequeno.
 3. Extraia o `.zip` baixado.
 4. Renomeie a pasta extraída para **`modelo_vosk`** e coloque dentro da mesma
-   pasta do `assistente_voz_offline.py`.
+   pasta do `chat.py`.
 
 Estrutura final esperada:
 ```
 assistente_voz/
-├── assistente_voz_offline.py
+├── chat.py
 ├── comandos.json
+├── interface.html
 ├── README.md
 └── modelo_vosk/
     ├── am/
@@ -57,7 +63,7 @@ direito no cmd/PowerShell → "Executar como administrador", navegue até a
 pasta e rode:
 
 ```
-python assistente_voz_offline.py
+python chat.py
 ```
 
 Você vai ouvir "Assistente de voz offline ativado" — a partir daí, fale.
@@ -157,6 +163,154 @@ microfone certo:
 
 Se depois de tudo isso ainda estiver captando fraco, o microfone físico pode
 ser o limitador — um headset USB costuma resolver isso de vez.
+
+## Se o Jarvis está cortando a frase no meio (ex.: entende só "abrir")
+
+Isso já vem corrigido: antes, quem decidia quando a frase tinha acabado era
+o próprio Vosk (endpointing interno), que às vezes cortava cedo demais. Agora
+o próprio Jarvis mede o volume do áudio e só considera a frase completa depois
+de um tempo de silêncio de verdade.
+
+Se ainda cortar cedo demais pra você, aumente o `"tempo_silencio_max"` em
+`comandos.json` (dentro de `"configuracoes"`) — o padrão é `1.6` segundos.
+Tente `2.0` ou `2.5` se você fala mais devagar ou com pausas no meio da
+frase. Tem também o `"tempo_max_frase"` (padrão 12 segundos), que é um
+limite de segurança pra caso você fique falando sem pausa nenhuma.
+
+## Interface visual
+
+O Jarvis tem uma pequena janela com uma nebulosa de partículas azuis
+animadas, que fica escondida por padrão e só aparece quando você pede:
+
+- "mostrar jarvis" / "abrir jarvis" / "abrir interface" → mostra a janela
+- "esconder jarvis" / "fechar jarvis" / "fechar interface" → esconde de novo
+
+Enquanto ele está falando, as partículas ficam mais brilhantes e pulsam mais
+rápido, **e a janela inteira balança suavemente** (um pequeno vaivém, não é
+tremida forte) — dá pra perceber de relance, mesmo com a janela pequena no
+canto da tela.
+
+O arquivo `interface.html` controla a aparência das partículas. Se quiser
+mudar cores, tamanho ou velocidade, é só editar esse arquivo.
+
+## Iniciar automaticamente com o Windows
+
+Recomendado usar o **Agendador de Tarefas** (não apenas a pasta de
+Inicialização), porque dá pra rodar com privilégios altos sem precisar
+confirmar o UAC toda vez que o PC ligar:
+
+1. `Win + R` → `taskschd.msc` → Enter
+2. "Criar Tarefa..." (não "Criar Tarefa Básica")
+3. Aba Geral: dê um nome (ex.: "Jarvis") e marque "Executar com os
+   privilégios mais altos"
+4. Aba Disparadores → Novo → "Ao fazer logon"
+5. Aba Ações → Novo → selecione o `iniciar_assistente.bat`
+6. OK, confirme a senha do Windows quando pedir
+
+**Sobre a confiabilidade do áudio nesse cenário:** logo depois do login, o
+driver de som do Windows pode levar alguns segundos a mais pra ficar pronto
+do que o tempo que a tarefa leva pra iniciar o `chat.py`. Por isso o script
+já tenta abrir o microfone várias vezes automaticamente (a cada 3 segundos,
+até 20 tentativas) antes de desistir — você não precisa fazer nada, mas se
+quiser dar uma folga extra, na aba Disparadores dá pra marcar "Atrasar a
+tarefa por" 15 a 30 segundos.
+
+Também: o Jarvis agora lembra o microfone escolhido pelo **nome**, não só
+pelo número — o Windows às vezes reordena os números dos dispositivos entre
+reinicializações, e isso evitava que ele voltasse a usar o microfone errado.
+
+## Orquestrador: Jarvis controlando suas outras IAs (Zez0, Celina, kroga bot...)
+
+O Jarvis agora funciona como um "hub": ele pode acionar suas outras IAs
+diretamente, ou executar **fluxos** com várias etapas de uma vez — no
+espírito do n8n, mas os "nós" são seus próprios projetos.
+
+### 1. Cadastre cada IA em `integracoes.json`
+
+```json
+{
+  "ias": {
+    "zez0": {
+      "tipo": "comando",
+      "comando": "python C:\\caminho\\para\\zez0\\principal.py"
+    },
+    "celina": {
+      "tipo": "comando",
+      "comando": "python C:\\caminho\\para\\celina\\iniciar.py"
+    },
+    "kroga": {
+      "tipo": "comando",
+      "comando": "node C:\\caminho\\para\\kroga-bot\\index.js"
+    }
+  }
+}
+```
+
+Os valores que vêm como `"SUBSTITUA_..."` são só um modelo — troque pelo
+comando real que você usa hoje pra iniciar cada uma. Se alguma dessas IAs
+já expuser algum tipo de API/webhook local, use `"tipo": "webhook"` e um
+campo `"url"` no lugar de `"comando"` — o Jarvis manda um POST com a tarefa.
+
+Depois de cadastrado, já dá pra falar ou digitar:
+- "iniciar zez0" / "abrir celina" / "rodar kroga"
+
+### 2. Monte fluxos de várias etapas em `fluxos.json`
+
+```json
+{
+  "fluxos": [
+    {
+      "nome": "rotina da manhã",
+      "gatilho": "rotina da manhã",
+      "etapas": [
+        {"ia": "zez0", "tarefa": "iniciar"},
+        {"ia": "kroga", "tarefa": "enviar resumo do dia"}
+      ]
+    }
+  ]
+}
+```
+
+O "gatilho" é a frase que você fala ou digita pra acionar o fluxo inteiro
+de uma vez — as etapas rodam em ordem, e o Jarvis avisa por voz cada uma.
+Isso resolve o "ir pegando cada item um por um": você cria o fluxo uma vez
+e depois só dispara ele.
+
+### 3. Comandos digitados, ao mesmo tempo que os falados
+
+O Jarvis agora também lê o que você digita no terminal onde ele está
+rodando, ao mesmo tempo que escuta o microfone — dá pra usar os dois sem
+precisar escolher um. Isso vale pra qualquer comando (não só fluxos):
+digite "abrir calculadora" e aperte Enter, funciona igual a falar.
+
+### Um ponto importante sobre a Celina e o kroga bot
+
+Eu não tenho os detalhes técnicos de como a Celina roda no seu PC nem qual
+é o comando exato do kroga bot — então deixei os dois como modelo em
+`integracoes.json` pra você preencher com o comando real. Depois de
+preenchido, funciona igual ao Zez0.
+
+### O que já usei do que você me contou antes
+
+- **Zez0**: agora sei que ele não é um script único — o Pokémon FireRed roda
+  via **BizHawk (EmuHawk.exe) + script Lua**, controlando o jogo e lendo
+  endereços de memória diretamente, enquanto cobrinha/campo minado/Pac-Man
+  provavelmente são scripts Python separados. Por isso troquei o cadastro
+  genérico por **uma IA por jogo**: `cobrinha`, `campo minado`, `pacman` e
+  `pokemon` — cada um com seu próprio comando em `integracoes.json`. Pra
+  `pokemon`, já deixei a estrutura real do comando (EmuHawk + `--lua=` +
+  caminho da ROM), só falta você preencher os caminhos. Assim dá pra falar
+  "abrir pokemon" ou "iniciar cobrinha" direto, sem ambiguidade sobre qual
+  jogo.
+- **kroga bot**: sei que ele tem comandos numerados (kroga1 = avisar,
+  kroga2 = marcar compromisso, kroga3 = resumo/resposta). Já deixei um
+  fluxo de exemplo ("resumo do dia") mandando a tarefa `"kroga3"`. **Atenção:**
+  hoje o kroga bot funciona recebendo mensagens pelo WhatsApp — pra esse
+  fluxo funcionar de verdade, ele precisa também aceitar comandos vindos de
+  fora (por exemplo, uma rota HTTP que o Jarvis chama com `"tipo": "webhook"`
+  em vez de `"tipo": "comando"`). Isso exige uma pequena mudança no código
+  do kroga bot que eu não fiz aqui, porque não tenho acesso a esse projeto.
+  Me chama numa conversa focada no kroga bot se quiser montar essa rota.
 
 ## Observações
 
