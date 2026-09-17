@@ -336,6 +336,30 @@ FRASES_FIXAS = [
     "esconder jarvis",
     "fechar jarvis",
     "fechar interface",
+    "que horas são",
+    "qual é a hora",
+    "horas",
+    "que dia é hoje",
+    "qual a data de hoje",
+    "data de hoje",
+    "bloquear tela",
+    "bloquear computador",
+    "bloquear pc",
+    "mostrar área de trabalho",
+    "minimizar tudo",
+    "suspender pc",
+    "hibernar pc",
+    "colocar pc para dormir",
+    "abrir gerenciador de tarefas",
+    "abrir painel de controle",
+    "abrir configurações",
+    "abrir configurações do windows",
+    "tirar print",
+    "capturar tela",
+    "tirar captura de tela",
+    "esvaziar lixeira",
+    "abrir lixeira",
+    "listar microfones",
 ]
 
 
@@ -384,53 +408,23 @@ def listar_microfones():
 
 
 def escolher_microfone(config):
-    nome_salvo = config["configuracoes"].get("microfone_nome")
-    if nome_salvo:
+    nome_forcado = config["configuracoes"].get("microfone_nome")
+    if nome_forcado:
         for indice, dispositivo in enumerate(sd.query_devices()):
             if (
                 dispositivo["max_input_channels"] > 0
-                and nome_salvo in dispositivo["name"]
+                and nome_forcado in dispositivo["name"]
             ):
                 return indice
         print(
-            f"Microfone salvo ('{nome_salvo}') não foi encontrado agora — tentando pelo índice salvo."
+            f"Microfone forçado ('{nome_forcado}') não foi encontrado agora — usando o padrão automático do Windows."
         )
 
-    indice_salvo = config["configuracoes"].get("microfone_indice")
-    if indice_salvo is not None:
-        return indice_salvo
+    indice_forcado = config["configuracoes"].get("microfone_indice")
+    if indice_forcado is not None:
+        return indice_forcado
 
-    if not sys.stdin.isatty():
-        print(
-            "Execução automática sem terminal interativo — usando o microfone padrão do Windows."
-        )
-        return None
-
-    entradas = listar_microfones()
-    if not entradas:
-        print("Nenhum microfone encontrado — usando o dispositivo padrão do Windows.")
-        return None
-
-    escolha = input(
-        "Digite o número do microfone que você quer usar (Enter para usar o padrão): "
-    ).strip()
-
-    if not escolha:
-        return None
-
-    try:
-        indice = int(escolha)
-    except ValueError:
-        print("Número inválido, usando o dispositivo padrão.")
-        return None
-
-    config["configuracoes"]["microfone_indice"] = indice
-    config["configuracoes"]["microfone_nome"] = sd.query_devices()[indice]["name"]
-    salvar_config(config)
-    print(
-        f"Microfone [{indice}] salvo em comandos.json. Da próxima vez não vai perguntar de novo."
-    )
-    return indice
+    return None
 
 
 def aplicar_ganho(dados_bytes, ganho):
@@ -514,6 +508,83 @@ def processar_comando(texto, config):
         mudo(False)
         mostrar_icone("volume")
         falar("Áudio ativado")
+        return True
+
+    if "que horas são" in texto or "qual é a hora" in texto or texto == "horas":
+        agora = datetime.now().strftime("%H:%M")
+        mostrar_icone("sistema")
+        falar(f"Agora são {agora}")
+        return True
+    if (
+        "que dia é hoje" in texto
+        or "qual a data de hoje" in texto
+        or "data de hoje" in texto
+    ):
+        hoje = datetime.now().strftime("%d/%m/%Y")
+        mostrar_icone("sistema")
+        falar(f"Hoje é {hoje}")
+        return True
+    if (
+        "bloquear tela" in texto
+        or "bloquear computador" in texto
+        or "bloquear pc" in texto
+    ):
+        mostrar_icone("sistema")
+        subprocess.Popen("rundll32.exe user32.dll,LockWorkStation", shell=True)
+        falar("Bloqueando a tela")
+        return True
+    if "mostrar área de trabalho" in texto or "minimizar tudo" in texto:
+        mostrar_icone("sistema")
+        keyboard.send("windows+d")
+        falar("Ok")
+        return True
+    if (
+        "suspender pc" in texto
+        or "hibernar pc" in texto
+        or "colocar pc para dormir" in texto
+    ):
+        mostrar_icone("sistema")
+        falar("Suspendendo o computador")
+        subprocess.Popen("rundll32.exe powrprof.dll,SetSuspendState 0,1,0", shell=True)
+        return True
+    if "abrir gerenciador de tarefas" in texto:
+        mostrar_icone("sistema")
+        subprocess.Popen("taskmgr.exe", shell=True)
+        falar("Abrindo o gerenciador de tarefas")
+        return True
+    if "abrir painel de controle" in texto:
+        mostrar_icone("sistema")
+        subprocess.Popen("control.exe", shell=True)
+        falar("Abrindo o painel de controle")
+        return True
+    if "abrir configurações" in texto:
+        mostrar_icone("sistema")
+        subprocess.Popen("start ms-settings:", shell=True)
+        falar("Abrindo as configurações")
+        return True
+    if (
+        "tirar print" in texto
+        or "capturar tela" in texto
+        or "tirar captura de tela" in texto
+    ):
+        mostrar_icone("sistema")
+        subprocess.Popen("explorer.exe ms-screenclip:", shell=True)
+        falar("Abrindo a ferramenta de captura")
+        return True
+    if "esvaziar lixeira" in texto:
+        mostrar_icone("sistema")
+        subprocess.Popen('powershell -Command "Clear-RecycleBin -Force"', shell=True)
+        falar("Lixeira esvaziada")
+        return True
+    if "abrir lixeira" in texto:
+        mostrar_icone("sistema")
+        subprocess.Popen("explorer.exe shell:RecycleBinFolder", shell=True)
+        falar("Abrindo a lixeira")
+        return True
+    if "listar microfones" in texto:
+        mostrar_icone("sistema")
+        listar_microfones()
+        falar("Lista de microfones no terminal")
         return True
 
     if (
@@ -606,7 +677,6 @@ def verificar_modelo():
 def abrir_entrada_audio(
     indice_microfone, callback, tentativas_max=20, intervalo_segundos=3
 ):
-
     for tentativa in range(1, tentativas_max + 1):
         try:
             return sd.RawInputStream(
@@ -630,7 +700,6 @@ def abrir_entrada_audio(
 def thread_reconhecimento_voz(
     indice_microfone, reconhecedor, tempo_silencio_max=1.6, tempo_max_frase=12
 ):
-
     LIMIAR_SILENCIO = 350
     TAMANHO_CHUNK_SEGUNDOS = 8000 / TAXA_AMOSTRAGEM
 
