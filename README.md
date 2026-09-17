@@ -79,6 +79,19 @@ Você vai ouvir "Assistente de voz offline ativado" — a partir daí, fale.
 - "abrir downloads" → exemplo de comando personalizado
 - "sair" → encerra o assistente
 
+**Comandos gerais do PC:**
+- "que horas são" / "que dia é hoje" → fala a hora ou a data atual
+- "bloquear tela" → bloqueia o Windows (Win+L)
+- "mostrar área de trabalho" / "minimizar tudo" → equivalente a Win+D
+- "suspender pc" / "hibernar pc" → coloca o PC pra dormir (não desliga — continua tudo aberto, só "pausa")
+- "abrir gerenciador de tarefas" / "abrir painel de controle" / "abrir configurações"
+- "tirar print" / "capturar tela" → abre a ferramenta de captura do Windows
+- "abrir lixeira" / "esvaziar lixeira"
+- "listar microfones" → mostra no terminal os microfones que o Windows enxerga (útil se quiser forçar um específico, veja a seção sobre microfone)
+
+Por segurança, comandos de **desligar/reiniciar** o PC continuam de fora por
+padrão (veja o final do README se quiser adicionar).
+
 ## 6. Adicionar seus próprios comandos
 
 Edite o **comandos.json** (não precisa mexer no código):
@@ -134,28 +147,37 @@ Se mesmo assim a precisão não estiver boa o suficiente:
   ruído (headset) ajuda bastante — o modelo Vosk não faz cancelamento de
   ruído sozinho.
 
+## Sobre a escolha do microfone
+
+O Jarvis agora escolhe o microfone **automaticamente e sem perguntar nada**:
+ele sempre usa o dispositivo que o Windows tem como **padrão** no momento.
+Isso significa que, se você trocar de microfone (plugar um headset, por
+exemplo) e mudar o padrão do Windows, o Jarvis já acompanha sozinho — e
+também não trava mais esperando uma resposta quando ele inicia
+automaticamente ao ligar o PC.
+
+Se quiser **forçar** um microfone específico (ignorando o que o Windows tem
+como padrão), rode o comando "listar microfones" pra ver a lista com os
+números, e depois edite `comandos.json` manualmente:
+
+```json
+"configuracoes": {
+  "microfone_nome": "Headset Bluetooth"
+}
+```
+
+(`microfone_nome` tem prioridade sobre `microfone_indice` — prefira usar o
+nome, já que o número pode mudar entre reinicializações.)
+
 ## Se você precisa aproximar muito o microfone pra ele escutar
 
-O `chat.py` agora amplifica o áudio por software e permite escolher o
-microfone certo:
-
-1. **Na primeira vez que rodar**, ele vai listar os microfones disponíveis
-   no terminal, tipo:
-   ```
-   Microfones disponíveis:
-     [0] Microfone (Realtek Audio)
-     [1] Headset Bluetooth
-   ```
-   Digite o número do microfone que você realmente usa e aperte Enter. Essa
-   escolha fica salva no `comandos.json` — não pergunta de novo depois.
-
-2. **Ganho de áudio**: por padrão o volume captado é multiplicado por `6.0`
+1. **Ganho de áudio**: por padrão o volume captado é multiplicado por `6.0`
    antes de ir pro reconhecimento. Se ainda estiver fraco, abra o
    `comandos.json` e aumente o valor de `"ganho_audio"` (em
    `"configuracoes"`), por exemplo para `10.0`. Se começar a distorcer ou
    pegar ruído demais, diminua.
 
-3. **Também vale aumentar o microfone no Windows**: clique com o botão
+2. **Também vale aumentar o microfone no Windows**: clique com o botão
    direito no ícone de som na barra de tarefas → "Configurações de som" →
    "Mais configurações de dispositivo de som" → aba "Gravação" → clique
    duas vezes no seu microfone → aba "Níveis" → suba o volume e, se tiver a
@@ -215,9 +237,10 @@ até 20 tentativas) antes de desistir — você não precisa fazer nada, mas se
 quiser dar uma folga extra, na aba Disparadores dá pra marcar "Atrasar a
 tarefa por" 15 a 30 segundos.
 
-Também: o Jarvis agora lembra o microfone escolhido pelo **nome**, não só
-pelo número — o Windows às vezes reordena os números dos dispositivos entre
-reinicializações, e isso evitava que ele voltasse a usar o microfone errado.
+Também: o Jarvis usa automaticamente o microfone padrão do Windows no
+momento — não depende mais de lembrar um índice específico, que podia mudar
+entre reinicializações. Veja a seção "Sobre a escolha do microfone" acima se
+quiser forçar um microfone fixo mesmo assim.
 
 ## Orquestrador: Jarvis controlando suas outras IAs (Zez0, Celina, kroga bot...)
 
@@ -290,7 +313,7 @@ Eu não tenho os detalhes técnicos de como a Celina roda no seu PC nem qual
 `integracoes.json` pra você preencher com o comando real. Depois de
 preenchido, funciona igual ao Zez0.
 
-### O que já usei do que você me contou antes
+### Auxílio com outras IAs já feitas
 
 - **Zez0**: agora sei que ele não é um script único — o Pokémon FireRed roda
   via **BizHawk (EmuHawk.exe) + script Lua**, controlando o jogo e lendo
@@ -315,9 +338,6 @@ preenchido, funciona igual ao Zez0.
 ## Observações
 
 - Por segurança, o script **não inclui** comando para desligar/reiniciar o PC
-  por padrão. Se quiser adicionar, use em "personalizados":
-  `"desligar computador": "shutdown /s /t 5"` — mas tome cuidado, pois qualquer
-  ruído parecido pode acionar sem querer.
+  por padrão. 
 - Sem "wake word" (palavra de ativação): o assistente sempre tenta interpretar
-  o que capta no microfone. Se isso gerar ativações indesejadas em ambiente
-  barulhento, me avise que dá pra adicionar uma palavra de ativação.
+  o que capta no microfone.
